@@ -1,0 +1,1671 @@
+openapi: 3.1.0
+info:
+  title: API de gestión de citas odontológicas
+  version: 1.0.0
+  description: |
+    API REST del consultorio odontológico (historia de usuario #1): pacientes, odontólogos con
+    especialidad y horario de atención, tratamientos, citas con reglas de agenda, registro de la
+    atención y tablero.
+
+    **Convenciones**
+
+    - Todas las respuestas exitosas usan el sobre `{ "data": ... }`. Los listados paginados añaden
+      `meta` con `{ page, pageSize, total, totalPages }`.
+    - Los errores usan `{ "error": { "code", "message", "details?" } }`. En errores de validación
+      (`VALIDACION`) `details` es una lista `[{ campo, mensaje }]`.
+    - Fechas de entrada y de agenda en formato `AAAA-MM-DD` y horas en `HH:MM` (24 h), siempre en
+      hora local del consultorio **America/La_Paz** (UTC-4, sin horario de verano).
+    - Los instantes (`inicio`, `fin`, `createdAt`, `updatedAt`) se devuelven en ISO 8601 UTC.
+    - Las citas incluyen además `fecha`, `horaInicio` y `horaFin` ya convertidas a hora local.
+    - `precio` es un decimal serializado como string (por ejemplo `"250"` o `"250.5"`).
+    - Los ids de ruta deben ser enteros positivos; si no, se responde 400 `VALIDACION`.
+    - Cualquier error no controlado responde 500 `ERROR_INTERNO`.
+
+    **Reglas de agenda** (al reservar o reprogramar una cita)
+
+    1. Paciente, odontólogo y tratamiento deben existir (404 `NO_ENCONTRADO`).
+    2. Odontólogo y tratamiento deben estar activos (422 `INACTIVO`).
+    3. La hora de fin se calcula con `duracionMinutos` del tratamiento.
+    4. No se agenda en el pasado (422 `CITA_EN_PASADO`).
+    5. La cita completa debe caber en un bloque del horario de atención del odontólogo ese día
+       (422 `FUERA_DE_HORARIO`).
+    6. No puede cruzarse con otra cita no cancelada del mismo odontólogo; los intervalos son
+       semiabiertos, una cita que termina 10:00 no choca con otra que empieza 10:00
+       (409 `CHOQUE_HORARIO`).
+
+    **Estados de una cita**: `PENDIENTE` ⇄ `CONFIRMADA`; ambos pueden pasar a `CANCELADA` o a
+    `ATENDIDA` (esta última solo registrando la atención). `CANCELADA` y `ATENDIDA` son finales.
+  contact:
+    name: Repositorio samm-Gabriel/gestion-citas-dental
+    url: https://github.com/samm-Gabriel/gestion-citas-dental
+servers:
+  - url: /api
+    description: Mismo origen que la aplicación Next.js
+security: []
+tags:
+  - name: Pacientes
+    description: Registro de pacientes e historial de citas
+  - name: Odontólogos
+    description: Odontólogos con especialidad y horario de atención semanal
+  - name: Tratamientos
+    description: Catálogo de tratamientos con duración y precio
+  - name: Citas
+    description: Reserva, reprogramación, cambios de estado y cancelación de citas
+  - name: Atención
+    description: Registro clínico de la atención de una cita
+  - name: Tablero
+    description: Resumen del día, de la semana y de pacientes nuevos del mes
+
+paths:
+  /pacientes:
+    get:
+      tags: [Pacientes]
+      operationId: listarPacientes
+      summary: Listar pacientes
+      description: |
+        Lista paginada ordenada por apellido, nombre e id. `q` se separa en palabras y cada palabra
+        debe aparecer (sin distinguir mayúsculas) en el nombre, el apellido o el CI.
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Página de pacientes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Paciente' }
+                  meta: { $ref: '#/components/schemas/MetaPaginacion' }
+              example:
+                data:
+                  - id: 1
+                    nombre: Juan Carlos
+                    apellido: Pérez Flores
+                    ci: '4567891'
+                    telefono: '+591 71234567'
+                    email: jcperez@gmail.com
+                    fechaNacimiento: '1985-03-14T00:00:00.000Z'
+                    createdAt: '2026-10-28T14:00:00.000Z'
+                    updatedAt: '2026-10-28T13:56:30.320Z'
+                meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    post:
+      tags: [Pacientes]
+      operationId: crearPaciente
+      summary: Registrar un paciente
+      description: El CI se guarda en mayúsculas y debe ser único.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PacienteCrear' }
+            example:
+              nombre: Ana Lucía
+              apellido: Torrez Mendoza
+              ci: '6789123'
+              telefono: '+591 76543210'
+              email: ana.torrez@hotmail.com
+              fechaNacimiento: '1992-07-22'
+      responses:
+        '201':
+          description: Paciente creado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Paciente' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '409':
+          description: Ya existe un paciente con ese CI (`CI_DUPLICADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: CI_DUPLICADO
+                  message: Ya existe un paciente con CI 6789123 (Ana Lucía Torrez Mendoza)
+                  details: { pacienteId: 2 }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /pacientes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Pacientes]
+      operationId: obtenerPaciente
+      summary: Obtener un paciente
+      description: Incluye `_count.citas` con el número de citas registradas.
+      responses:
+        '200':
+          description: Paciente encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/PacienteDetalle' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    patch:
+      tags: [Pacientes]
+      operationId: actualizarPaciente
+      summary: Actualizar un paciente
+      description: Actualización parcial; se debe enviar al menos un campo. Devuelve el paciente sin `_count`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PacienteActualizar' }
+            example:
+              telefono: '+591 70000001'
+              email: null
+      responses:
+        '200':
+          description: Paciente actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Paciente' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Otro paciente ya tiene ese CI (`CI_DUPLICADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: CI_DUPLICADO
+                  message: Ya existe otro paciente con CI 4567891 (Juan Carlos Pérez Flores)
+                  details: { pacienteId: 1 }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    delete:
+      tags: [Pacientes]
+      operationId: eliminarPaciente
+      summary: Eliminar un paciente
+      description: Solo se puede eliminar un paciente sin citas registradas.
+      responses:
+        '200': { $ref: '#/components/responses/Eliminado' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El paciente tiene citas registradas (`EN_USO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: EN_USO
+                  message: No se puede eliminar al paciente porque tiene 3 cita(s) registrada(s)
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /pacientes/{id}/citas:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Pacientes]
+      operationId: historialPaciente
+      summary: Historial de citas de un paciente
+      description: |
+        Todas las citas del paciente, de la más reciente a la más antigua (sin paginar).
+        Cada cita incluye `odontologo`, `tratamiento` y `atencion`, pero no `paciente`.
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: Filtra por un único estado.
+          schema: { $ref: '#/components/schemas/EstadoCita' }
+      responses:
+        '200':
+          description: Historial del paciente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /odontologos:
+    get:
+      tags: [Odontólogos]
+      operationId: listarOdontologos
+      summary: Listar odontólogos
+      description: |
+        Lista paginada ordenada por nombre, con sus horarios ordenados por día y hora.
+        `q` busca (sin distinguir mayúsculas) en nombre o especialidad.
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Activo'
+        - name: especialidad
+          in: query
+          required: false
+          description: Filtra por especialidad (contiene, sin distinguir mayúsculas).
+          schema: { type: string, maxLength: 100 }
+          example: Endodoncia
+      responses:
+        '200':
+          description: Página de odontólogos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Odontologo' }
+                  meta: { $ref: '#/components/schemas/MetaPaginacion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    post:
+      tags: [Odontólogos]
+      operationId: crearOdontologo
+      summary: Registrar un odontólogo con su horario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OdontologoCrear' }
+            example:
+              nombre: Dr. Carlos Mamani Choque
+              especialidad: Endodoncia
+              horarios:
+                - { diaSemana: 1, horaInicio: '09:00', horaFin: '13:00' }
+                - { diaSemana: 1, horaInicio: '15:00', horaFin: '19:00' }
+                - { diaSemana: 3, horaInicio: '09:00', horaFin: '13:00' }
+      responses:
+        '201':
+          description: Odontólogo creado con sus horarios
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Odontologo' }
+              example:
+                data:
+                  id: 2
+                  nombre: Dr. Carlos Mamani Choque
+                  especialidad: Endodoncia
+                  activo: true
+                  createdAt: '2026-10-28T13:56:21.544Z'
+                  updatedAt: '2026-10-28T13:56:21.544Z'
+                  horarios:
+                    - id: 11
+                      odontologoId: 2
+                      diaSemana: 1
+                      horaInicio: '09:00'
+                      horaFin: '13:00'
+                      createdAt: '2026-10-28T13:56:21.544Z'
+                      updatedAt: '2026-10-28T13:56:21.544Z'
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /odontologos/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Odontólogos]
+      operationId: obtenerOdontologo
+      summary: Obtener un odontólogo
+      description: Incluye horarios y `_count.citas`.
+      responses:
+        '200':
+          description: Odontólogo encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OdontologoDetalle' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    patch:
+      tags: [Odontólogos]
+      operationId: actualizarOdontologo
+      summary: Actualizar un odontólogo
+      description: |
+        Actualización parcial; se debe enviar al menos un campo. Si se envía `horarios`, **reemplaza
+        por completo** el horario anterior (enviar `[]` deja al odontólogo sin horario). Para dar de
+        baja a un odontólogo con citas usa `activo: false`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OdontologoActualizar' }
+            example:
+              activo: false
+      responses:
+        '200':
+          description: Odontólogo actualizado (con horarios y `_count.citas`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OdontologoDetalle' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    delete:
+      tags: [Odontólogos]
+      operationId: eliminarOdontologo
+      summary: Eliminar un odontólogo
+      description: Solo si no tiene citas; sus horarios se eliminan en cascada.
+      responses:
+        '200': { $ref: '#/components/responses/Eliminado' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El odontólogo tiene citas registradas (`EN_USO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: EN_USO
+                  message: No se puede eliminar al odontólogo porque tiene 12 cita(s) registrada(s); desactívalo con activo=false
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /tratamientos:
+    get:
+      tags: [Tratamientos]
+      operationId: listarTratamientos
+      summary: Listar tratamientos
+      description: Lista paginada ordenada por nombre. `q` busca en nombre o descripción.
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Activo'
+      responses:
+        '200':
+          description: Página de tratamientos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tratamiento' }
+                  meta: { $ref: '#/components/schemas/MetaPaginacion' }
+              example:
+                data:
+                  - id: 1
+                    nombre: Consulta y diagnóstico
+                    descripcion: Evaluación inicial, odontograma y plan de tratamiento
+                    duracionMinutos: 30
+                    precio: '100'
+                    activo: true
+                    createdAt: '2026-10-28T13:56:09.640Z'
+                    updatedAt: '2026-10-28T13:56:09.640Z'
+                meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    post:
+      tags: [Tratamientos]
+      operationId: crearTratamiento
+      summary: Registrar un tratamiento
+      description: El nombre es único sin distinguir mayúsculas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TratamientoCrear' }
+            example:
+              nombre: Obturación con resina
+              descripcion: Restauración estética de una pieza con caries
+              duracionMinutos: 60
+              precio: '250.00'
+      responses:
+        '201':
+          description: Tratamiento creado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Tratamiento' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '409': { $ref: '#/components/responses/NombreDuplicado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /tratamientos/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Tratamientos]
+      operationId: obtenerTratamiento
+      summary: Obtener un tratamiento
+      description: Incluye `_count.citas`.
+      responses:
+        '200':
+          description: Tratamiento encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/TratamientoDetalle' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    patch:
+      tags: [Tratamientos]
+      operationId: actualizarTratamiento
+      summary: Actualizar un tratamiento
+      description: |
+        Actualización parcial; se debe enviar al menos un campo. Cambiar `duracionMinutos` no
+        modifica las citas ya agendadas. Devuelve el tratamiento sin `_count`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TratamientoActualizar' }
+            example:
+              precio: 275.5
+      responses:
+        '200':
+          description: Tratamiento actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Tratamiento' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/NombreDuplicado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    delete:
+      tags: [Tratamientos]
+      operationId: eliminarTratamiento
+      summary: Eliminar un tratamiento
+      description: Solo si no tiene citas; si las tiene, desactívalo con `activo=false`.
+      responses:
+        '200': { $ref: '#/components/responses/Eliminado' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El tratamiento tiene citas (`EN_USO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: EN_USO
+                  message: No se puede eliminar el tratamiento porque tiene 20 cita(s); desactívalo con activo=false
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /citas:
+    get:
+      tags: [Citas]
+      operationId: listarCitas
+      summary: Listar citas (agenda)
+      description: |
+        Lista paginada ordenada por inicio ascendente. Cada cita incluye `paciente`, `odontologo`,
+        `tratamiento` y `atencion`. `q` se separa en palabras y cada palabra debe aparecer en el
+        nombre, apellido o CI del paciente, el nombre del odontólogo o el nombre del tratamiento.
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Page'
+        - name: pageSize
+          in: query
+          required: false
+          description: Tamaño de página (en citas el máximo es 200).
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: desde
+          in: query
+          required: false
+          description: Fecha local inicial inclusive (desde las 00:00 de La Paz).
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+          example: '2026-10-26'
+        - name: hasta
+          in: query
+          required: false
+          description: Fecha local final inclusive. No puede ser anterior a `desde`.
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+          example: '2026-11-01'
+        - name: odontologoId
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: pacienteId
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: estado
+          in: query
+          required: false
+          description: Uno o varios estados separados por comas (no distingue mayúsculas).
+          schema: { type: string }
+          example: PENDIENTE,CONFIRMADA
+      responses:
+        '200':
+          description: Página de citas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Cita' }
+                  meta: { $ref: '#/components/schemas/MetaPaginacion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    post:
+      tags: [Citas]
+      operationId: reservarCita
+      summary: Reservar una cita
+      description: |
+        Crea la cita en estado `PENDIENTE` aplicando todas las reglas de agenda. La hora de fin se
+        calcula con la duración del tratamiento.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CitaCrear' }
+            example:
+              pacienteId: 1
+              odontologoId: 1
+              tratamientoId: 3
+              fecha: '2026-11-03'
+              horaInicio: '09:00'
+              motivo: Dolor en muela inferior izquierda
+      responses:
+        '201':
+          description: Cita reservada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+              examples:
+                reservada: { $ref: '#/components/examples/CitaReservada' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontradoAgenda' }
+        '409': { $ref: '#/components/responses/ChoqueHorario' }
+        '422': { $ref: '#/components/responses/ReglaAgenda' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /citas/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Citas]
+      operationId: obtenerCita
+      summary: Obtener una cita
+      responses:
+        '200':
+          description: Cita con paciente, odontólogo, tratamiento y atención
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    patch:
+      tags: [Citas]
+      operationId: reprogramarCita
+      summary: Reprogramar una cita
+      description: |
+        Cambia fecha, hora, odontólogo, tratamiento y/o motivo (al menos un campo). Los campos que no
+        se envían conservan su valor actual. Si cambia algo de la agenda se vuelven a aplicar todas
+        las reglas (excluyendo la propia cita del control de choques). No se puede reprogramar una
+        cita `CANCELADA` o `ATENDIDA`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CitaReprogramar' }
+            example:
+              fecha: '2026-11-04'
+              horaInicio: '15:00'
+      responses:
+        '200':
+          description: Cita reprogramada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontradoAgenda' }
+        '409': { $ref: '#/components/responses/ChoqueHorario' }
+        '422': { $ref: '#/components/responses/ReglaAgendaOEstado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    delete:
+      tags: [Citas]
+      operationId: eliminarCita
+      summary: Eliminar una cita
+      description: Elimina físicamente la cita. No se permite si está `ATENDIDA`; para anularla usa la cancelación.
+      responses:
+        '200': { $ref: '#/components/responses/Eliminado' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422':
+          description: La cita está atendida (`ESTADO_INVALIDO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: ESTADO_INVALIDO
+                  message: No se puede eliminar una cita atendida porque tiene una atención registrada
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /citas/{id}/cancelar:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Citas]
+      operationId: cancelarCita
+      summary: Cancelar una cita
+      description: |
+        Pasa la cita a `CANCELADA` y libera su horario. El cuerpo es opcional. Si la cita ya estaba
+        cancelada se devuelve sin cambios (200). Una cita `ATENDIDA` no puede cancelarse.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CitaCancelar' }
+            example:
+              motivoCancelacion: El paciente avisó que no podrá asistir
+      responses:
+        '200':
+          description: Cita cancelada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/EstadoInvalido' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /citas/{id}/estado:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Citas]
+      operationId: cambiarEstadoCita
+      summary: Cambiar el estado de una cita
+      description: |
+        Permite `PENDIENTE` ⇄ `CONFIRMADA` y pasar a `CANCELADA` (con `motivoCancelacion` opcional,
+        que se ignora y limpia para otros estados). `ATENDIDA` no se acepta aquí: se obtiene
+        registrando la atención. Si el estado pedido es el actual se devuelve la cita sin cambios.
+        Desde `CANCELADA` o `ATENDIDA` no hay transiciones.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CitaCambiarEstado' }
+            example:
+              estado: CONFIRMADA
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/EstadoInvalido' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /citas/{id}/atencion:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Atención]
+      operationId: obtenerAtencion
+      summary: Obtener la atención de una cita
+      responses:
+        '200':
+          description: Atención registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Atencion' }
+              example:
+                data:
+                  id: 1
+                  citaId: 1
+                  diagnostico: Caries oclusal en pieza 36
+                  tratamientoRealizado: Obturación con resina compuesta A2
+                  observaciones: Control en 6 meses
+                  createdAt: '2026-10-28T13:56:43.547Z'
+                  updatedAt: '2026-10-28T13:56:43.547Z'
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '404':
+          description: No existe la cita o todavía no tiene atención registrada (`NO_ENCONTRADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: NO_ENCONTRADO
+                  message: La cita todavía no tiene una atención registrada
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    post:
+      tags: [Atención]
+      operationId: registrarAtencion
+      summary: Registrar la atención y marcar la cita como ATENDIDA
+      description: |
+        Crea la atención (al menos uno de diagnóstico, tratamiento realizado u observaciones) y cambia
+        la cita a `ATENDIDA` en la misma transacción. Devuelve la cita completa con `atencion`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AtencionCrear' }
+            example:
+              diagnostico: Caries oclusal en pieza 36
+              tratamientoRealizado: Obturación con resina compuesta A2
+              observaciones: Control en 6 meses
+      responses:
+        '201':
+          description: Atención registrada; la cita queda ATENDIDA
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La cita ya tiene atención registrada (`CONFLICTO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: CONFLICTO
+                  message: La cita ya tiene una atención registrada; usa PATCH para modificarla
+        '422':
+          description: La cita está cancelada (`ESTADO_INVALIDO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: ESTADO_INVALIDO
+                  message: No se puede registrar la atención de una cita cancelada
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    patch:
+      tags: [Atención]
+      operationId: actualizarAtencion
+      summary: Modificar la atención registrada
+      description: Actualización parcial (al menos un campo; `null` o `""` borra el campo). Devuelve la cita completa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AtencionActualizar' }
+            example:
+              observaciones: Control en 3 meses
+      responses:
+        '200':
+          description: Atención actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Cita' }
+        '400': { $ref: '#/components/responses/ValidacionCuerpo' }
+        '404':
+          description: No existe la cita o todavía no tiene atención registrada (`NO_ENCONTRADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: NO_ENCONTRADO
+                  message: La cita todavía no tiene una atención registrada
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /tablero:
+    get:
+      tags: [Tablero]
+      operationId: obtenerTablero
+      summary: Tablero del consultorio
+      description: |
+        Resumen calculado para la fecha de referencia (por defecto, hoy en La Paz):
+
+        - `citasHoy`: todas las citas del día (incluidas canceladas) con conteo por estado.
+        - `citasSemana`: citas no canceladas de lunes a domingo de esa semana, agrupadas por
+          odontólogo. Aparecen todos los odontólogos activos (aunque tengan 0 citas) y los inactivos
+          que tengan citas esa semana. Estas citas incluyen `paciente`, `odontologo` y `tratamiento`
+          pero no `atencion`.
+        - `pacientesNuevosMes`: pacientes registrados en el mes calendario de la fecha.
+      parameters:
+        - name: fecha
+          in: query
+          required: false
+          description: Fecha de referencia local (AAAA-MM-DD). Por defecto, hoy en La Paz.
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+          example: '2026-10-28'
+      responses:
+        '200':
+          description: Tablero
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Tablero' }
+              example:
+                data:
+                  fecha: '2026-10-28'
+                  citasHoy:
+                    fecha: '2026-10-28'
+                    total: 0
+                    porEstado: { PENDIENTE: 0, CONFIRMADA: 0, ATENDIDA: 0, CANCELADA: 0 }
+                    citas: []
+                  citasSemana:
+                    desde: '2026-10-26'
+                    hasta: '2026-11-01'
+                    total: 0
+                    porOdontologo:
+                      - odontologo: { id: 1, nombre: Dra. María Fernanda Quiroga, especialidad: Odontología general }
+                        citas: []
+                        total: 0
+                  pacientesNuevosMes:
+                    desde: '2026-10-01'
+                    hasta: '2026-10-31'
+                    total: 0
+                    pacientes: []
+        '400': { $ref: '#/components/responses/Validacion' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Identificador numérico (entero positivo).
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    Q:
+      name: q
+      in: query
+      required: false
+      description: Texto de búsqueda (sin distinguir mayúsculas).
+      schema: { type: string, maxLength: 100 }
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Número de página (desde 1).
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: Tamaño de página.
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Activo:
+      name: activo
+      in: query
+      required: false
+      description: Filtra por estado activo. Solo acepta `true` o `false`.
+      schema: { type: string, enum: ['true', 'false'] }
+
+  schemas:
+    Fecha:
+      type: string
+      format: date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Fecha de calendario AAAA-MM-DD (hora local America/La_Paz). Debe existir en el calendario.
+      examples: ['2026-11-03']
+    Hora:
+      type: string
+      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+      description: Hora local HH:MM de 00:00 a 23:59 (America/La_Paz).
+      examples: ['09:30']
+    Instante:
+      type: string
+      format: date-time
+      description: Instante en ISO 8601 UTC.
+      examples: ['2026-10-28T13:56:09.640Z']
+    EstadoCita:
+      type: string
+      enum: [PENDIENTE, CONFIRMADA, ATENDIDA, CANCELADA]
+    Conteo:
+      type: object
+      required: [citas]
+      properties:
+        citas:
+          type: integer
+          minimum: 0
+          description: Número de citas asociadas.
+
+    MetaPaginacion:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0 }
+        totalPages:
+          type: integer
+          minimum: 1
+          description: Siempre al menos 1, aunque no haya resultados.
+
+    CodigoError:
+      type: string
+      enum:
+        - VALIDACION
+        - JSON_INVALIDO
+        - NO_ENCONTRADO
+        - CONFLICTO
+        - CI_DUPLICADO
+        - NOMBRE_DUPLICADO
+        - CHOQUE_HORARIO
+        - EN_USO
+        - CITA_EN_PASADO
+        - FUERA_DE_HORARIO
+        - INACTIVO
+        - ESTADO_INVALIDO
+        - ERROR_INTERNO
+    DetalleValidacion:
+      type: object
+      required: [campo, mensaje]
+      properties:
+        campo:
+          type: string
+          description: Ruta del campo con puntos (por ejemplo `horarios.0.horaFin`) o `(cuerpo)` para errores del objeto completo.
+        mensaje: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/CodigoError' }
+            message:
+              type: string
+              description: Mensaje en español para mostrar al usuario.
+            details:
+              description: |
+                Opcional. Lista de `DetalleValidacion` en `VALIDACION`; objeto con contexto en
+                `CI_DUPLICADO` (`pacienteId`), `NOMBRE_DUPLICADO` (`tratamientoId`),
+                `CHOQUE_HORARIO` (`citaId`, `fecha`, `horaInicio`, `horaFin`) y `FUERA_DE_HORARIO`
+                (`horarios` del día).
+              oneOf:
+                - type: array
+                  items: { $ref: '#/components/schemas/DetalleValidacion' }
+                - type: object
+                  additionalProperties: true
+
+    Paciente:
+      type: object
+      required: [id, nombre, apellido, ci, telefono, email, fechaNacimiento, createdAt, updatedAt]
+      properties:
+        id: { type: integer, examples: [1] }
+        nombre: { type: string, examples: [Juan Carlos] }
+        apellido: { type: string, examples: [Pérez Flores] }
+        ci: { type: string, description: 'Cédula de identidad (única, en mayúsculas).', examples: ['4567891'] }
+        telefono: { type: string, examples: ['+591 71234567'] }
+        email: { type: [string, 'null'], format: email, examples: [jcperez@gmail.com] }
+        fechaNacimiento:
+          type: [string, 'null']
+          format: date-time
+          description: Fecha de nacimiento serializada como medianoche UTC (`AAAA-MM-DDT00:00:00.000Z`); la parte de fecha es la fecha real.
+          examples: ['1985-03-14T00:00:00.000Z']
+        createdAt: { $ref: '#/components/schemas/Instante' }
+        updatedAt: { $ref: '#/components/schemas/Instante' }
+    PacienteDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Paciente'
+        - type: object
+          required: [_count]
+          properties:
+            _count: { $ref: '#/components/schemas/Conteo' }
+
+    HorarioAtencion:
+      type: object
+      description: Bloque semanal de atención. diaSemana 0 = domingo ... 6 = sábado; horas locales de La Paz.
+      required: [id, odontologoId, diaSemana, horaInicio, horaFin, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        odontologoId: { type: integer }
+        diaSemana: { type: integer, minimum: 0, maximum: 6 }
+        horaInicio: { $ref: '#/components/schemas/Hora' }
+        horaFin: { $ref: '#/components/schemas/Hora' }
+        createdAt: { $ref: '#/components/schemas/Instante' }
+        updatedAt: { $ref: '#/components/schemas/Instante' }
+    OdontologoBase:
+      type: object
+      required: [id, nombre, especialidad, activo, createdAt, updatedAt]
+      properties:
+        id: { type: integer, examples: [1] }
+        nombre: { type: string, examples: [Dra. María Fernanda Quiroga] }
+        especialidad: { type: string, examples: [Odontología general] }
+        activo: { type: boolean, description: Los odontólogos inactivos no reciben citas. }
+        createdAt: { $ref: '#/components/schemas/Instante' }
+        updatedAt: { $ref: '#/components/schemas/Instante' }
+    Odontologo:
+      description: Odontólogo con su horario (ordenado por día y hora de inicio).
+      allOf:
+        - $ref: '#/components/schemas/OdontologoBase'
+        - type: object
+          required: [horarios]
+          properties:
+            horarios:
+              type: array
+              items: { $ref: '#/components/schemas/HorarioAtencion' }
+    OdontologoDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Odontologo'
+        - type: object
+          required: [_count]
+          properties:
+            _count: { $ref: '#/components/schemas/Conteo' }
+
+    Tratamiento:
+      type: object
+      required: [id, nombre, descripcion, duracionMinutos, precio, activo, createdAt, updatedAt]
+      properties:
+        id: { type: integer, examples: [3] }
+        nombre: { type: string, examples: [Obturación con resina] }
+        descripcion: { type: [string, 'null'] }
+        duracionMinutos: { type: integer, minimum: 5, maximum: 480, examples: [60] }
+        precio:
+          type: string
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+          description: Decimal(10,2) serializado como string, sin ceros finales (por ejemplo "250" o "275.5").
+          examples: ['250']
+        activo: { type: boolean, description: Los tratamientos inactivos no se pueden agendar. }
+        createdAt: { $ref: '#/components/schemas/Instante' }
+        updatedAt: { $ref: '#/components/schemas/Instante' }
+    TratamientoDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Tratamiento'
+        - type: object
+          required: [_count]
+          properties:
+            _count: { $ref: '#/components/schemas/Conteo' }
+
+    Atencion:
+      type: object
+      required: [id, citaId, diagnostico, tratamientoRealizado, observaciones, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        citaId: { type: integer }
+        diagnostico: { type: [string, 'null'] }
+        tratamientoRealizado: { type: [string, 'null'] }
+        observaciones: { type: [string, 'null'] }
+        createdAt: { $ref: '#/components/schemas/Instante' }
+        updatedAt: { $ref: '#/components/schemas/Instante' }
+
+    Cita:
+      type: object
+      description: |
+        Cita serializada. `fecha`, `horaInicio` y `horaFin` están en hora local de La Paz.
+        Relaciones incluidas: en `/citas` y `/citas/{id}` (y en las respuestas de atención, estado y
+        cancelación) vienen `paciente`, `odontologo`, `tratamiento` y `atencion`; en el historial
+        del paciente no viene `paciente`; en `citasSemana` del tablero no viene `atencion`.
+        `odontologo` no incluye horarios.
+      required:
+        - id
+        - pacienteId
+        - odontologoId
+        - tratamientoId
+        - inicio
+        - fin
+        - estado
+        - motivo
+        - motivoCancelacion
+        - createdAt
+        - updatedAt
+        - fecha
+        - horaInicio
+        - horaFin
+      properties:
+        id: { type: integer }
+        pacienteId: { type: integer }
+        odontologoId: { type: integer }
+        tratamientoId: { type: integer }
+        inicio: { $ref: '#/components/schemas/Instante' }
+        fin:
+          $ref: '#/components/schemas/Instante'
+          description: inicio + duracionMinutos del tratamiento.
+        estado: { $ref: '#/components/schemas/EstadoCita' }
+        motivo: { type: [string, 'null'] }
+        motivoCancelacion: { type: [string, 'null'] }
+        createdAt: { $ref: '#/components/schemas/Instante' }
+        updatedAt: { $ref: '#/components/schemas/Instante' }
+        fecha: { $ref: '#/components/schemas/Fecha' }
+        horaInicio: { $ref: '#/components/schemas/Hora' }
+        horaFin: { $ref: '#/components/schemas/Hora' }
+        paciente: { $ref: '#/components/schemas/Paciente' }
+        odontologo: { $ref: '#/components/schemas/OdontologoBase' }
+        tratamiento: { $ref: '#/components/schemas/Tratamiento' }
+        atencion:
+          oneOf:
+            - $ref: '#/components/schemas/Atencion'
+            - type: 'null'
+
+    OdontologoResumen:
+      type: object
+      required: [id, nombre, especialidad]
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        especialidad: { type: string }
+    Tablero:
+      type: object
+      required: [fecha, citasHoy, citasSemana, pacientesNuevosMes]
+      properties:
+        fecha: { $ref: '#/components/schemas/Fecha' }
+        citasHoy:
+          type: object
+          required: [fecha, total, porEstado, citas]
+          properties:
+            fecha: { $ref: '#/components/schemas/Fecha' }
+            total: { type: integer, minimum: 0 }
+            porEstado:
+              type: object
+              required: [PENDIENTE, CONFIRMADA, ATENDIDA, CANCELADA]
+              properties:
+                PENDIENTE: { type: integer, minimum: 0 }
+                CONFIRMADA: { type: integer, minimum: 0 }
+                ATENDIDA: { type: integer, minimum: 0 }
+                CANCELADA: { type: integer, minimum: 0 }
+            citas:
+              type: array
+              description: Ordenadas por hora de inicio.
+              items: { $ref: '#/components/schemas/Cita' }
+        citasSemana:
+          type: object
+          required: [desde, hasta, total, porOdontologo]
+          properties:
+            desde:
+              $ref: '#/components/schemas/Fecha'
+              description: Lunes de la semana.
+            hasta:
+              $ref: '#/components/schemas/Fecha'
+              description: Domingo de la semana.
+            total:
+              type: integer
+              minimum: 0
+              description: Citas no canceladas de la semana.
+            porOdontologo:
+              type: array
+              items:
+                type: object
+                required: [odontologo, citas, total]
+                properties:
+                  odontologo: { $ref: '#/components/schemas/OdontologoResumen' }
+                  citas:
+                    type: array
+                    items: { $ref: '#/components/schemas/Cita' }
+                  total: { type: integer, minimum: 0 }
+        pacientesNuevosMes:
+          type: object
+          required: [desde, hasta, total, pacientes]
+          properties:
+            desde:
+              $ref: '#/components/schemas/Fecha'
+              description: Primer día del mes.
+            hasta:
+              $ref: '#/components/schemas/Fecha'
+              description: Último día del mes.
+            total: { type: integer, minimum: 0 }
+            pacientes:
+              type: array
+              description: Ordenados del más reciente al más antiguo.
+              items: { $ref: '#/components/schemas/Paciente' }
+
+    PacienteCrear:
+      type: object
+      required: [nombre, apellido, ci, telefono]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 100, description: Se recortan espacios. }
+        apellido: { type: string, minLength: 1, maxLength: 100 }
+        ci:
+          type: string
+          pattern: '^[0-9]{4,12}(-?[0-9A-Za-z]{1,4})?$'
+          description: 4 a 12 dígitos y complemento opcional (ej. 1234567-1A). Se guarda en mayúsculas. Único.
+          examples: ['3456789-1A']
+        telefono:
+          type: string
+          pattern: '^\+?[0-9 ()-]{6,20}$'
+          description: 6 a 20 caracteres entre dígitos, espacios, paréntesis y guiones, con + inicial opcional.
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 120
+          description: Opcional; `""` se guarda como null.
+        fechaNacimiento:
+          oneOf:
+            - $ref: '#/components/schemas/Fecha'
+            - type: 'null'
+          description: Opcional; no puede estar en el futuro. `""` se guarda como null.
+    PacienteActualizar:
+      type: object
+      minProperties: 1
+      description: Mismos campos que al crear, todos opcionales; al menos uno.
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 100 }
+        apellido: { type: string, minLength: 1, maxLength: 100 }
+        ci: { type: string, pattern: '^[0-9]{4,12}(-?[0-9A-Za-z]{1,4})?$' }
+        telefono: { type: string, pattern: '^\+?[0-9 ()-]{6,20}$' }
+        email: { type: [string, 'null'], format: email, maxLength: 120 }
+        fechaNacimiento:
+          oneOf:
+            - $ref: '#/components/schemas/Fecha'
+            - type: 'null'
+
+    HorarioEntrada:
+      type: object
+      required: [diaSemana, horaInicio, horaFin]
+      description: horaInicio debe ser anterior a horaFin.
+      properties:
+        diaSemana: { type: integer, minimum: 0, maximum: 6, description: 0 = domingo ... 6 = sábado. }
+        horaInicio: { $ref: '#/components/schemas/Hora' }
+        horaFin: { $ref: '#/components/schemas/Hora' }
+    HorariosEntrada:
+      type: array
+      maxItems: 21
+      description: Bloques del mismo día no pueden solaparse.
+      items: { $ref: '#/components/schemas/HorarioEntrada' }
+    OdontologoCrear:
+      type: object
+      required: [nombre, especialidad]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 120 }
+        especialidad: { type: string, minLength: 1, maxLength: 100 }
+        activo: { type: boolean, default: true }
+        horarios:
+          $ref: '#/components/schemas/HorariosEntrada'
+          default: []
+    OdontologoActualizar:
+      type: object
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 120 }
+        especialidad: { type: string, minLength: 1, maxLength: 100 }
+        activo: { type: boolean }
+        horarios:
+          $ref: '#/components/schemas/HorariosEntrada'
+          description: Reemplaza el horario completo.
+
+    PrecioEntrada:
+      description: Número positivo con hasta 8 enteros y 2 decimales, como número o string.
+      oneOf:
+        - type: number
+          minimum: 0
+          examples: [250]
+        - type: string
+          pattern: '^\d{1,8}(\.\d{1,2})?$'
+          examples: ['250.00']
+    TratamientoCrear:
+      type: object
+      required: [nombre, duracionMinutos, precio]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 120, description: Único sin distinguir mayúsculas. }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+        duracionMinutos: { type: integer, minimum: 5, maximum: 480 }
+        precio: { $ref: '#/components/schemas/PrecioEntrada' }
+        activo: { type: boolean, default: true }
+    TratamientoActualizar:
+      type: object
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 120 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+        duracionMinutos: { type: integer, minimum: 5, maximum: 480 }
+        precio: { $ref: '#/components/schemas/PrecioEntrada' }
+        activo: { type: boolean }
+
+    CitaCrear:
+      type: object
+      required: [pacienteId, odontologoId, tratamientoId, fecha, horaInicio]
+      properties:
+        pacienteId: { type: integer, minimum: 1 }
+        odontologoId: { type: integer, minimum: 1 }
+        tratamientoId: { type: integer, minimum: 1 }
+        fecha: { $ref: '#/components/schemas/Fecha' }
+        horaInicio: { $ref: '#/components/schemas/Hora' }
+        motivo: { type: [string, 'null'], maxLength: 500 }
+    CitaReprogramar:
+      type: object
+      minProperties: 1
+      properties:
+        fecha: { $ref: '#/components/schemas/Fecha' }
+        horaInicio: { $ref: '#/components/schemas/Hora' }
+        odontologoId: { type: integer, minimum: 1 }
+        tratamientoId: { type: integer, minimum: 1 }
+        motivo: { type: [string, 'null'], maxLength: 500 }
+    CitaCambiarEstado:
+      type: object
+      required: [estado]
+      properties:
+        estado:
+          type: string
+          enum: [PENDIENTE, CONFIRMADA, CANCELADA]
+          description: ATENDIDA no se acepta; se registra con POST /citas/{id}/atencion.
+        motivoCancelacion: { type: [string, 'null'], maxLength: 500 }
+    CitaCancelar:
+      type: object
+      properties:
+        motivoCancelacion: { type: [string, 'null'], maxLength: 500 }
+
+    AtencionCrear:
+      type: object
+      description: Debe tener al menos uno de los tres campos con texto.
+      properties:
+        diagnostico: { type: [string, 'null'], maxLength: 2000 }
+        tratamientoRealizado: { type: [string, 'null'], maxLength: 2000 }
+        observaciones: { type: [string, 'null'], maxLength: 2000 }
+      anyOf:
+        - required: [diagnostico]
+        - required: [tratamientoRealizado]
+        - required: [observaciones]
+    AtencionActualizar:
+      type: object
+      minProperties: 1
+      description: Al menos un campo. `null` o `""` borran el valor.
+      properties:
+        diagnostico: { type: [string, 'null'], maxLength: 2000 }
+        tratamientoRealizado: { type: [string, 'null'], maxLength: 2000 }
+        observaciones: { type: [string, 'null'], maxLength: 2000 }
+
+    Eliminado:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id]
+          properties:
+            id: { type: integer, description: Id del registro eliminado. }
+
+  examples:
+    CitaReservada:
+      summary: Cita reservada
+      value:
+        data:
+          id: 115
+          pacienteId: 1
+          odontologoId: 1
+          tratamientoId: 3
+          inicio: '2026-11-03T13:00:00.000Z'
+          fin: '2026-11-03T14:00:00.000Z'
+          estado: PENDIENTE
+          motivo: Dolor en muela inferior izquierda
+          motivoCancelacion: null
+          createdAt: '2026-10-28T14:10:00.000Z'
+          updatedAt: '2026-10-28T14:10:00.000Z'
+          paciente:
+            id: 1
+            nombre: Juan Carlos
+            apellido: Pérez Flores
+            ci: '4567891'
+            telefono: '+591 71234567'
+            email: jcperez@gmail.com
+            fechaNacimiento: '1985-03-14T00:00:00.000Z'
+            createdAt: '2026-10-28T14:00:00.000Z'
+            updatedAt: '2026-10-28T13:56:30.320Z'
+          odontologo:
+            id: 1
+            nombre: Dra. María Fernanda Quiroga
+            especialidad: Odontología general
+            activo: true
+            createdAt: '2026-10-28T13:56:21.544Z'
+            updatedAt: '2026-10-28T13:56:21.544Z'
+          tratamiento:
+            id: 3
+            nombre: Obturación con resina
+            descripcion: Restauración estética de una pieza con caries
+            duracionMinutos: 60
+            precio: '250'
+            activo: true
+            createdAt: '2026-10-28T13:56:16.000Z'
+            updatedAt: '2026-10-28T13:56:16.000Z'
+          atencion: null
+          fecha: '2026-11-03'
+          horaInicio: '09:00'
+          horaFin: '10:00'
+
+  responses:
+    Validacion:
+      description: Parámetros no válidos (`VALIDACION`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: VALIDACION
+              message: Los datos enviados no son válidos
+              details:
+                - { campo: pageSize, mensaje: pageSize admite como máximo 100 }
+    IdInvalido:
+      description: El id de la ruta no es un entero positivo (`VALIDACION`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: VALIDACION
+              message: El id debe ser un número entero positivo
+              details:
+                - { campo: id, mensaje: Debe ser un entero positivo }
+    ValidacionCuerpo:
+      description: |
+        Cuerpo o id no válidos. `JSON_INVALIDO` si el cuerpo está vacío o no es JSON;
+        `VALIDACION` (con `details`) si algún campo no cumple las reglas.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            validacion:
+              summary: Campos inválidos
+              value:
+                error:
+                  code: VALIDACION
+                  message: Los datos enviados no son válidos
+                  details:
+                    - { campo: horaInicio, mensaje: 'La hora debe tener el formato HH:MM (00:00 a 23:59)' }
+            jsonInvalido:
+              summary: Cuerpo que no es JSON
+              value:
+                error:
+                  code: JSON_INVALIDO
+                  message: El cuerpo de la petición no es un JSON válido
+    NoEncontrado:
+      description: El recurso no existe (`NO_ENCONTRADO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: NO_ENCONTRADO
+              message: No existe el paciente con id 999
+    NoEncontradoAgenda:
+      description: No existe la cita, el paciente, el odontólogo o el tratamiento indicado (`NO_ENCONTRADO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: NO_ENCONTRADO
+              message: No existe el odontólogo con id 99
+    NombreDuplicado:
+      description: Ya existe un tratamiento con ese nombre (`NOMBRE_DUPLICADO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: NOMBRE_DUPLICADO
+              message: Ya existe un tratamiento llamado "Obturación con resina"
+              details: { tratamientoId: 3 }
+    ChoqueHorario:
+      description: El odontólogo ya tiene una cita no cancelada que se cruza (`CHOQUE_HORARIO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: CHOQUE_HORARIO
+              message: El odontólogo ya tiene una cita el 2026-11-03 de 08:30 a 09:30 que se cruza con este horario
+              details: { citaId: 87, fecha: '2026-11-03', horaInicio: '08:30', horaFin: '09:30' }
+    ReglaAgenda:
+      description: |
+        Regla de agenda incumplida: `CITA_EN_PASADO`, `FUERA_DE_HORARIO` (con `details.horarios` del
+        día) o `INACTIVO` (odontólogo o tratamiento inactivo).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            enPasado:
+              summary: Cita en el pasado
+              value:
+                error:
+                  code: CITA_EN_PASADO
+                  message: No se puede agendar una cita en el pasado (2026-10-20 09:00, hora de La Paz)
+            fueraDeHorario:
+              summary: Fuera del horario de atención
+              value:
+                error:
+                  code: FUERA_DE_HORARIO
+                  message: 'La cita de 11:30 a 12:30 (60 min) no cabe en el horario de atención: los martes el odontólogo atiende de 08:00 a 12:00 y de 14:00 a 18:00'
+                  details:
+                    horarios:
+                      - { id: 3, odontologoId: 1, diaSemana: 2, horaInicio: '08:00', horaFin: '12:00', createdAt: '2026-10-28T13:56:21.544Z', updatedAt: '2026-10-28T13:56:21.544Z' }
+                      - { id: 4, odontologoId: 1, diaSemana: 2, horaInicio: '14:00', horaFin: '18:00', createdAt: '2026-10-28T13:56:21.544Z', updatedAt: '2026-10-28T13:56:21.544Z' }
+            inactivo:
+              summary: Odontólogo inactivo
+              value:
+                error:
+                  code: INACTIVO
+                  message: El odontólogo Dr. Jorge Gutiérrez Salazar está inactivo y no puede recibir citas
+    ReglaAgendaOEstado:
+      description: |
+        `ESTADO_INVALIDO` si la cita está cancelada o atendida, o una regla de agenda incumplida:
+        `CITA_EN_PASADO`, `FUERA_DE_HORARIO` o `INACTIVO`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            estadoInvalido:
+              summary: Cita cancelada
+              value:
+                error:
+                  code: ESTADO_INVALIDO
+                  message: No se puede reprogramar una cita cancelada
+            enPasado:
+              summary: Cita en el pasado
+              value:
+                error:
+                  code: CITA_EN_PASADO
+                  message: No se puede agendar una cita en el pasado (2026-10-20 09:00, hora de La Paz)
+            fueraDeHorario:
+              summary: Fuera del horario de atención
+              value:
+                error:
+                  code: FUERA_DE_HORARIO
+                  message: 'La cita de 19:00 a 19:30 (30 min) no cabe en el horario de atención: los miércoles el odontólogo atiende de 08:00 a 12:00 y de 14:00 a 18:00'
+                  details: { horarios: [] }
+            inactivo:
+              summary: Tratamiento inactivo
+              value:
+                error:
+                  code: INACTIVO
+                  message: El tratamiento Blanqueamiento dental está inactivo
+    EstadoInvalido:
+      description: Transición de estado no permitida (`ESTADO_INVALIDO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            cancelada:
+              summary: Desde CANCELADA
+              value:
+                error:
+                  code: ESTADO_INVALIDO
+                  message: La cita está cancelada y no puede reactivarse; agenda una nueva cita
+            atendida:
+              summary: Desde ATENDIDA
+              value:
+                error:
+                  code: ESTADO_INVALIDO
+                  message: La cita ya fue atendida y no puede cambiar de estado
+    Eliminado:
+      description: Registro eliminado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Eliminado' }
+          example:
+            data: { id: 5 }
+    ErrorInterno:
+      description: Error no controlado (`ERROR_INTERNO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: ERROR_INTERNO
+              message: Ocurrió un error interno en el servidor
