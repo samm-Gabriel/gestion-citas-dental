@@ -8,13 +8,14 @@ import { Campo } from "@/components/comunes";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { cancelarCita, type Cita } from "@/lib/api";
+import { cancelarCita, erroresPorCampo, type Cita } from "@/lib/api";
 import { nombrePaciente } from "@/lib/formato";
 
 function FormularioCancelar({ cita, onListo }: { cita: Cita; onListo: (cita: Cita) => void }) {
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [enviando, setEnviando] = useState(false);
+  const porCampo = erroresPorCampo(error);
 
   async function cancelar(e: React.FormEvent) {
     e.preventDefault();
@@ -32,7 +33,7 @@ function FormularioCancelar({ cita, onListo }: { cita: Cita; onListo: (cita: Cit
 
   return (
     <form onSubmit={cancelar} className="flex flex-col gap-4">
-      <Campo id="motivo-cancelacion" etiqueta="Motivo de la cancelación" ayuda="Opcional">
+      <Campo id="motivo-cancelacion" etiqueta="Motivo de la cancelación" ayuda="Opcional" error={porCampo.motivoCancelacion}>
         <Textarea
           id="motivo-cancelacion"
           rows={3}
@@ -42,7 +43,7 @@ function FormularioCancelar({ cita, onListo }: { cita: Cita; onListo: (cita: Cit
           onChange={(e) => setMotivo(e.target.value)}
         />
       </Campo>
-      <AlertaErrorAgenda error={error} />
+      <AlertaErrorAgenda error={Object.keys(porCampo).length ? null : error} />
       <DialogFooter>
         <Button type="submit" variant="destructive" disabled={enviando}>
           {enviando ? "Cancelando…" : "Cancelar cita"}

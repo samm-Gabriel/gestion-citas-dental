@@ -1,7 +1,4 @@
-/**
- * Cliente tipado de la API del consultorio (docs/api/openapi.yaml, base /api).
- * Con NEXT_PUBLIC_USE_MOCKS="1" responde con los datos en memoria de lib/mocks.ts.
- */
+/** Cliente tipado de la API del consultorio (docs/api/openapi.yaml, base /api). */
 
 export type EstadoCita = "PENDIENTE" | "CONFIRMADA" | "ATENDIDA" | "CANCELADA";
 
@@ -61,13 +58,17 @@ export class ApiError extends Error {
   }
 }
 
-/** Convierte los `details` de un error VALIDACION en { campo: mensaje }. */
+/** Campo que usa la API para errores de validación que no son de un campo concreto. */
+const CAMPO_CUERPO = "(cuerpo)";
+
+/** Convierte los `details` de un error VALIDACION en { campo: mensaje }; omite los del cuerpo completo. */
 export function erroresPorCampo(error: unknown): Record<string, string> {
   if (!(error instanceof ApiError) || error.code !== "VALIDACION" || !Array.isArray(error.details)) {
     return {};
   }
   const errores: Record<string, string> = {};
   for (const detalle of error.details) {
+    if (detalle.campo === CAMPO_CUERPO) continue;
     const campo = detalle.campo.split(".")[0];
     errores[campo] ??= detalle.mensaje;
   }
@@ -75,6 +76,10 @@ export function erroresPorCampo(error: unknown): Record<string, string> {
 }
 
 export function mensajeError(error: unknown): string {
+  if (error instanceof ApiError && error.code === "VALIDACION" && Array.isArray(error.details)) {
+    const general = error.details.find((d) => d.campo === CAMPO_CUERPO);
+    if (general) return general.mensaje;
+  }
   if (error instanceof Error) return error.message;
   return "Ocurrió un error inesperado";
 }
@@ -304,8 +309,6 @@ export interface Sobre<T> {
   meta?: MetaPaginacion;
 }
 
-const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "1";
-
 function construirQuery(query?: Query): string {
   if (!query) return "";
   const params = new URLSearchParams();
@@ -318,13 +321,6 @@ function construirQuery(query?: Query): string {
 }
 
 async function solicitar<T>(metodo: Metodo, ruta: string, opciones: { query?: Query; body?: unknown } = {}): Promise<Sobre<T>> {
-  if (USE_MOCKS) {
-    const { responderMock } = await import("./mocks");
-    const respuesta = responderMock(metodo, ruta, opciones.query ?? {}, opciones.body);
-    if ("error" in respuesta.cuerpo) throw new ApiError(respuesta.status, respuesta.cuerpo.error);
-    return respuesta.cuerpo as Sobre<T>;
-  }
-
   let res: Response;
   try {
     res = await fetch(`/api${ruta}${construirQuery(opciones.query)}`, {

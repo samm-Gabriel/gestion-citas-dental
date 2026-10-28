@@ -3,7 +3,7 @@
 import { AlertCircle, CalendarX2, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useDatos } from "@/hooks/use-datos";
-import { ApiError, listCitas, listOdontologos, listTratamientos, type CodigoError, type Odontologo } from "@/lib/api";
+import { ApiError, listCitas, listOdontologos, listTratamientos, mensajeError, type CodigoError, type Odontologo } from "@/lib/api";
 import { diaSemanaDeFecha } from "@/lib/fechas";
 import { DIAS_SEMANA, nombrePaciente, ordenarHorarios } from "@/lib/formato";
 
@@ -21,7 +21,7 @@ const TITULOS: Partial<Record<CodigoError, string>> = {
 export function AlertaErrorAgenda({ error }: { error: unknown }) {
   if (!error) return null;
   const codigo = error instanceof ApiError ? error.code : undefined;
-  const mensaje = error instanceof Error ? error.message : "Ocurrió un error inesperado";
+  const mensaje = mensajeError(error);
   return (
     <Alert variant="destructive">
       <AlertCircle />

@@ -8,7 +8,7 @@ import { Campo } from "@/components/comunes";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { registrarAtencion, updateAtencion, type Cita } from "@/lib/api";
+import { erroresPorCampo, registrarAtencion, updateAtencion, type Cita } from "@/lib/api";
 import { nombrePaciente } from "@/lib/formato";
 
 const CAMPOS = [
@@ -29,6 +29,7 @@ function FormularioAtencion({ cita, onListo }: { cita: Cita; onListo: (cita: Cit
   const [error, setError] = useState<unknown>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const porCampo = erroresPorCampo(error);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +58,7 @@ function FormularioAtencion({ cita, onListo }: { cita: Cita; onListo: (cita: Cit
   return (
     <form onSubmit={guardar} className="flex flex-col gap-4" noValidate>
       {CAMPOS.map((campo) => (
-        <Campo key={campo.clave} id={`atencion-${campo.clave}`} etiqueta={campo.etiqueta}>
+        <Campo key={campo.clave} id={`atencion-${campo.clave}`} etiqueta={campo.etiqueta} error={porCampo[campo.clave]}>
           <Textarea
             id={`atencion-${campo.clave}`}
             rows={campo.clave === "observaciones" ? 2 : 3}
@@ -69,7 +70,7 @@ function FormularioAtencion({ cita, onListo }: { cita: Cita; onListo: (cita: Cit
         </Campo>
       ))}
       {aviso && <p className="text-sm text-destructive">{aviso}</p>}
-      <AlertaErrorAgenda error={error} />
+      <AlertaErrorAgenda error={Object.keys(porCampo).length ? null : error} />
       <DialogFooter>
         <Button type="submit" disabled={enviando}>
           {enviando ? "Guardando…" : existente ? "Guardar cambios" : "Registrar y marcar atendida"}

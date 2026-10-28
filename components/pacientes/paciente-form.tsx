@@ -64,8 +64,8 @@ export function PacienteForm({ paciente, hoy }: { paciente?: Paciente; hoy: stri
       router.push(`/pacientes/${guardado.id}`);
     } catch (err) {
       const porCampo = erroresPorCampo(err);
+      if (err instanceof ApiError && err.code === "CI_DUPLICADO") porCampo.ci = err.message;
       setErrores(porCampo);
-      if (err instanceof ApiError && err.code === "CI_DUPLICADO") setErrores({ ci: err.message });
       setErrorGeneral(Object.keys(porCampo).length ? "Revisa los campos marcados." : mensajeError(err));
       setEnviando(false);
     }
