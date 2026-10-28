@@ -1,0 +1,16 @@
+@startuml CU08_Consultar_disponibilidad_del_odontologo
+title CU08 - Consultar disponibilidad del odontólogo
+left to right direction
+skinparam packageStyle rectangle
+actor "Recepcionista" as Recepcionista
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU08\nConsultar disponibilidad del odontólogo" as CU08
+  usecase "CU07\nReservar cita" as CU07
+  usecase "CU09\nReprogramar cita" as CU09
+}
+Recepcionista -- CU08
+Administrador -- CU08
+CU07 ..> CU08 : <<include>>
+CU09 ..> CU08 : <<include>>
+@enduml

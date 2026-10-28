@@ -1,0 +1,16 @@
+@startuml CU15_Consultar_historial_del_paciente
+title CU15 - Consultar historial del paciente
+left to right direction
+skinparam packageStyle rectangle
+actor "Usuario" as Usuario
+actor "Recepcionista" as Recepcionista
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+Recepcionista --|> Usuario
+Odontologo --|> Usuario
+Administrador --|> Usuario
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU15\nConsultar historial del paciente" as CU15
+}
+Usuario -- CU15
+@enduml

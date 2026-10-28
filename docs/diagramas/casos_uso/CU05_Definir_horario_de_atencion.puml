@@ -1,0 +1,17 @@
+@startuml CU05_Definir_horario_de_atencion
+title CU05 - Definir horario de atención
+left to right direction
+skinparam packageStyle rectangle
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU05\nDefinir horario de atención" as CU05
+  usecase "CU04\nGestionar odontólogos" as CU04
+}
+Administrador -- CU05
+CU05 ..> CU04 : <<extend>>
+note right of CU05
+  Condición: el administrador agrega, modifica
+  o quita bloques de horario
+  Punto de extensión: «Horario de atención»
+end note
+@enduml

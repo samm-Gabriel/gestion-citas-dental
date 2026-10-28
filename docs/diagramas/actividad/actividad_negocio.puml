@@ -1,0 +1,44 @@
+@startuml actividad_negocio
+title Proceso de atención de una cita en el consultorio
+|Paciente|
+start
+:Solicitar una cita;
+|Recepcionista|
+if (¿El paciente ya está registrado?) then (sí)
+  :Ubicar al paciente por nombre o CI;
+else (no)
+  :Registrar los datos del paciente;
+endif
+:Elegir odontólogo y tratamiento;
+:Revisar el horario de atención y las horas ocupadas;
+if (¿Hay un horario libre que cabe en la duración del tratamiento?) then (sí)
+  :Agendar la cita como pendiente;
+else (no)
+  :Proponer otra fecha, hora u odontólogo;
+  |Paciente|
+  :Aceptar la nueva propuesta;
+  |Recepcionista|
+  :Agendar la cita como pendiente;
+endif
+|Paciente|
+if (¿Puede asistir?) then (sí)
+  |Recepcionista|
+  :Confirmar la cita;
+  |Paciente|
+  :Asistir a la consulta;
+  |Odontólogo|
+  :Atender al paciente;
+  :Anotar diagnóstico, tratamiento realizado y observaciones;
+  :Dar la cita por atendida;
+else (no)
+  |Recepcionista|
+  if (¿Desea otra fecha?) then (sí)
+    :Reprogramar la cita;
+  else (no)
+    :Cancelar la cita y liberar el horario;
+  endif
+endif
+|Administrador|
+:Revisar citas del día, de la semana y pacientes nuevos;
+stop
+@enduml

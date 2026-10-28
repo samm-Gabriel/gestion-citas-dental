@@ -1,0 +1,67 @@
+erDiagram
+    direction LR
+    Paciente {
+        integer id PK
+        text nombre
+        text apellido
+        text ci UK
+        text telefono
+        text email
+        date fechaNacimiento
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    Odontologo {
+        integer id PK
+        text nombre
+        text especialidad
+        boolean activo
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    HorarioAtencion {
+        integer id PK
+        integer odontologoId FK, UK
+        integer diaSemana UK
+        text horaInicio UK
+        text horaFin
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    Tratamiento {
+        integer id PK
+        text nombre UK
+        text descripcion
+        integer duracionMinutos
+        numeric precio
+        boolean activo
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    Cita {
+        integer id PK
+        integer pacienteId FK
+        integer odontologoId FK
+        integer tratamientoId FK
+        timestamp inicio
+        timestamp fin
+        EstadoCita estado
+        text motivo
+        text motivoCancelacion
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    Atencion {
+        integer id PK
+        integer citaId FK, UK
+        text diagnostico
+        text tratamientoRealizado
+        text observaciones
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    Odontologo ||..o{ HorarioAtencion : define
+    Paciente ||..o{ Cita : solicita
+    Odontologo ||..o{ Cita : atiende
+    Tratamiento ||..o{ Cita : se_agenda_en
+    Cita ||..o| Atencion : registra

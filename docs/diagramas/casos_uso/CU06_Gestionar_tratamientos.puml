@@ -1,0 +1,10 @@
+@startuml CU06_Gestionar_tratamientos
+title CU06 - Gestionar tratamientos
+left to right direction
+skinparam packageStyle rectangle
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU06\nGestionar tratamientos" as CU06
+}
+Administrador -- CU06
+@enduml

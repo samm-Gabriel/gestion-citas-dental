@@ -45,3 +45,6 @@ next-env.d.ts
 
 # arnés del agente
 .harness/
+
+# generador de la documentación
+docs/generador/node_modules/

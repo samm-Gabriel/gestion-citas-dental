@@ -1,0 +1,15 @@
+{
+  "name": "generador-documentacion",
+  "private": true,
+  "type": "module",
+  "description": "Renderiza diagramas PlantUML/Mermaid a PNG y arma el DOCX del sistema.",
+  "scripts": {
+    "render": "node render.mjs",
+    "build": "node build.mjs",
+    "all": "node render.mjs && node build.mjs"
+  },
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "^11.4.2",
+    "docx": "^9.5.1"
+  }
+}

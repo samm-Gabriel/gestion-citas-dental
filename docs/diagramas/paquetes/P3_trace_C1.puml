@@ -1,0 +1,10 @@
+@startuml P3_trace_C1
+title P3 Agenda de citas - Ciclo 1
+left to right direction
+package "P3 Agenda de citas" as P3 {
+}
+usecase "CU07 Reservar cita" as CU07
+usecase "CU08 Consultar disponibilidad del odontólogo" as CU08
+P3 ..> CU07 : <<trace>>
+P3 ..> CU08 : <<trace>>
+@enduml

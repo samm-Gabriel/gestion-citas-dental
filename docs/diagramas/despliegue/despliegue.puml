@@ -1,0 +1,24 @@
+@startuml despliegue
+title Diagrama de despliegue (previsto, issue #10)
+node "Dispositivo del usuario\n(PC o celular)" as Cliente {
+  artifact "Navegador web\n(React 19, perfil en localStorage)" as Nav
+}
+cloud "Vercel" as Vercel {
+  node "Next.js 16.4.3\n(App Router)" as Next {
+    artifact "Páginas y recursos estáticos\n(app/(panel)/**, app/page.tsx)" as Paginas
+    artifact "Funciones de API\n(app/api/**/route.ts)" as Api
+    artifact "Prisma Client 6.19" as Orm
+  }
+}
+cloud "Neon" as Neon {
+  database "PostgreSQL\nschema gestion-citas-dental" as Pg
+}
+Nav --> Paginas : HTTPS
+Nav --> Api : HTTPS / JSON (fetch)
+Api --> Orm
+Orm --> Pg : TCP 5432 (TLS)\nDATABASE_URL (pooler)
+note bottom of Vercel
+  URL de producción: se registra en el issue #10.
+  Las migraciones usan DIRECT_URL (conexión directa).
+end note
+@enduml

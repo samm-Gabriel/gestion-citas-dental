@@ -1,0 +1,12 @@
+@startuml CU02_Gestionar_pacientes
+title CU02 - Gestionar pacientes
+left to right direction
+skinparam packageStyle rectangle
+actor "Recepcionista" as Recepcionista
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU02\nGestionar pacientes" as CU02
+}
+Recepcionista -- CU02
+Administrador -- CU02
+@enduml

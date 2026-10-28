@@ -1,0 +1,13 @@
+@startuml CU14_Registrar_atencion_comunicacion
+title CU14 - Registrar atención
+actor "Odontólogo" as Actor
+boundary "Vatencion" as Vatencion
+control "Catencion" as Catencion
+entity "Ecita" as Ecita
+entity "Eatencion" as Eatencion
+
+Actor -- Vatencion : "1: ~[sin atención previa] enviarAtencion(citaId, diagnostico, tratamientoRealizado, observaciones) →\n1.6: «Atención registrada: la cita quedó atendida» ←\n2: ~[con atención previa] enviarAtencion(citaId, diagnostico, tratamientoRealizado, observaciones) →\n2.5: «Atención actualizada» ←"
+Vatencion -- Catencion : "1.1: ~[algún campo con texto] registrar(citaId, datos) →\n1.5: cita ATENDIDA (201) ←\n2.1: actualizar(citaId, datos) →\n2.4: cita con atención (200) ←"
+Catencion -- Ecita : "1.2: buscar(citaId) →\n1.4: ~[no cancelada y sin atención] marcarAtendida(citaId) →\n2.2: buscar(citaId) →"
+Catencion -- Eatencion : "1.3: ~[no cancelada y sin atención] insertar(citaId, datos) →\n2.3: ~[con atención] actualizar(citaId, datos) →"
+@enduml

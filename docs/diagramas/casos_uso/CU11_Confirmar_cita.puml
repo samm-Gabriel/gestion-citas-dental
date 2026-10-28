@@ -1,0 +1,12 @@
+@startuml CU11_Confirmar_cita
+title CU11 - Confirmar cita
+left to right direction
+skinparam packageStyle rectangle
+actor "Recepcionista" as Recepcionista
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU11\nConfirmar cita" as CU11
+}
+Recepcionista -- CU11
+Administrador -- CU11
+@enduml

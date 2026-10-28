@@ -1,0 +1,12 @@
+@startuml CU12_Consultar_agenda_de_citas
+title CU12 - Consultar agenda de citas
+left to right direction
+skinparam packageStyle rectangle
+actor "Recepcionista" as Recepcionista
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU12\nConsultar agenda de citas" as CU12
+}
+Recepcionista -- CU12
+Administrador -- CU12
+@enduml

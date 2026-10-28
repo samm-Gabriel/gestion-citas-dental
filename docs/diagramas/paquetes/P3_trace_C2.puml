@@ -1,0 +1,12 @@
+@startuml P3_trace_C2
+title P3 Agenda de citas - Ciclo 2
+left to right direction
+package "P3 Agenda de citas" as P3 {
+}
+usecase "CU09 Reprogramar cita" as CU09
+usecase "CU10 Cancelar cita" as CU10
+usecase "CU11 Confirmar cita" as CU11
+P3 ..> CU09 : <<trace>>
+P3 ..> CU10 : <<trace>>
+P3 ..> CU11 : <<trace>>
+@enduml

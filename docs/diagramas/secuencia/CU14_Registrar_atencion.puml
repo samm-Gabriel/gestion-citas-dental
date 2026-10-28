@@ -1,0 +1,56 @@
+@startuml CU14_Registrar_atencion
+title CU14 - Registrar atención
+skinparam maxMessageSize 150
+hide footbox
+autonumber
+actor "Odontólogo" as Actor
+boundary "Vatencion" as Vatencion
+control "Catencion" as Catencion
+entity "Ecita" as Ecita
+entity "Eatencion" as Eatencion
+
+== Registrar la atención (la cita aún no tiene atención) ==
+Actor -> Vatencion : enviarAtencion(citaId, diagnostico, tratamientoRealizado, observaciones)
+activate Vatencion
+break los tres campos están vacíos (E1)
+  Vatencion --> Actor : "Completa al menos uno de los tres campos."
+end
+Vatencion -> Catencion : registrar(citaId, datos)
+activate Catencion
+Catencion -> Ecita : buscar(citaId)
+break la cita no existe (E2)
+  Catencion --> Vatencion : 404 NO_ENCONTRADO
+  Vatencion --> Actor : "No existe la cita con id N"
+end
+break la cita está cancelada (E3)
+  Catencion --> Vatencion : 422 ESTADO_INVALIDO
+  Vatencion --> Actor : "No se puede registrar la atención de una cita cancelada"
+end
+break la cita ya tiene atención (E4)
+  Catencion --> Vatencion : 409 CONFLICTO
+  Vatencion --> Actor : "La cita ya tiene una atención registrada; usa PATCH para modificarla"
+end
+Catencion -> Eatencion : insertar(citaId, datos)
+Catencion -> Ecita : marcarAtendida(citaId)
+Catencion --> Vatencion : cita ATENDIDA (201)
+deactivate Catencion
+Vatencion --> Actor : "Atención registrada: la cita quedó atendida"
+deactivate Vatencion
+
+newpage CU14 - Registrar atención (flujo alternativo A1: corregir la atención)
+== Corregir la atención (la cita ya tiene atención, A1) ==
+Actor -> Vatencion : enviarAtencion(citaId, diagnostico, tratamientoRealizado, observaciones)
+activate Vatencion
+Vatencion -> Catencion : actualizar(citaId, datos)
+activate Catencion
+Catencion -> Ecita : buscar(citaId)
+break la cita no tiene atención registrada (E5)
+  Catencion --> Vatencion : 404 NO_ENCONTRADO
+  Vatencion --> Actor : "La cita todavía no tiene una atención registrada"
+end
+Catencion -> Eatencion : actualizar(citaId, datos)
+Catencion --> Vatencion : cita con atención (200)
+deactivate Catencion
+Vatencion --> Actor : "Atención actualizada"
+deactivate Vatencion
+@enduml

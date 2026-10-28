@@ -1,0 +1,16 @@
+@startuml P4_trace_C2
+title P4 Atención y seguimiento - Ciclo 2
+left to right direction
+package "P4 Atención y seguimiento" as P4 {
+}
+usecase "CU12 Consultar agenda de citas" as CU12
+usecase "CU13 Consultar agenda del día" as CU13
+usecase "CU14 Registrar atención" as CU14
+usecase "CU15 Consultar historial del paciente" as CU15
+usecase "CU16 Consultar tablero" as CU16
+P4 ..> CU12 : <<trace>>
+P4 ..> CU13 : <<trace>>
+P4 ..> CU14 : <<trace>>
+P4 ..> CU15 : <<trace>>
+P4 ..> CU16 : <<trace>>
+@enduml

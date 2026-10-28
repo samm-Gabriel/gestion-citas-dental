@@ -1,0 +1,12 @@
+@startuml CU16_Consultar_tablero
+title CU16 - Consultar tablero
+left to right direction
+skinparam packageStyle rectangle
+actor "Recepcionista" as Recepcionista
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU16\nConsultar tablero" as CU16
+}
+Recepcionista -- CU16
+Administrador -- CU16
+@enduml

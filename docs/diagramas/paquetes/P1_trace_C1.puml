@@ -1,0 +1,12 @@
+@startuml P1_trace_C1
+title P1 Acceso y pacientes - Ciclo 1
+left to right direction
+package "P1 Acceso y pacientes" as P1 {
+}
+usecase "CU01 Seleccionar perfil" as CU01
+usecase "CU02 Gestionar pacientes" as CU02
+usecase "CU03 Buscar paciente" as CU03
+P1 ..> CU01 : <<trace>>
+P1 ..> CU02 : <<trace>>
+P1 ..> CU03 : <<trace>>
+@enduml

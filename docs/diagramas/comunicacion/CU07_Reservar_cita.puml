@@ -1,0 +1,18 @@
+@startuml CU07_Reservar_cita_comunicacion
+title CU07 - Reservar cita
+actor "Recepcionista" as Actor
+boundary "Vcita" as Vcita
+control "Ccita" as Ccita
+entity "Epaciente" as Epaciente
+entity "Eodontologo" as Eodontologo
+entity "Etratamiento" as Etratamiento
+entity "Ecita" as Ecita
+
+Actor -- Vcita : "1: elegirOdontologoYFecha(odontologoId, fecha) →\n1.4: bloques del día y horas reservadas ←\n2: enviarCita(pacienteId, odontologoId, tratamientoId, fecha, horaInicio, motivo) →\n2.10: «Cita reservada» ←"
+Vcita -- Ccita : "1.1: listarOcupadas(odontologoId, fecha) →\n1.3: horas reservadas ←\n2.1: ~[datos completos] reservar(datos) →\n2.9: cita creada (201) ←"
+Ccita -- Ecita : "1.2: buscarActivas(odontologoId, fecha) →\n2.2: bloquearAgenda(odontologoId) →\n2.7: ~[en horario y no en el pasado] buscarChoque(odontologoId, inicio, fin) →\n2.8: ~[sin choque] insertar(cita) →"
+Ccita -- Epaciente : "2.3: buscar(pacienteId) →"
+Ccita -- Eodontologo : "2.4: buscarConHorarios(odontologoId) →"
+Ccita -- Etratamiento : "2.5: buscar(tratamientoId) →"
+Ccita -- Ccita : "2.6: calcularFin(inicio, duracionMinutos) →"
+@enduml

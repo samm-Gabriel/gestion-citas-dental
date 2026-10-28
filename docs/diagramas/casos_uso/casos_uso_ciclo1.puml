@@ -1,0 +1,42 @@
+@startuml casos_uso_ciclo1
+title Casos de uso - Ciclo 1
+left to right direction
+skinparam packageStyle rectangle
+actor "Usuario" as Usuario
+actor "Recepcionista" as Recepcionista
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+Recepcionista --|> Usuario
+Odontologo --|> Usuario
+Administrador --|> Usuario
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU01\nSeleccionar perfil" as CU01
+  usecase "CU02\nGestionar pacientes" as CU02
+  usecase "CU03\nBuscar paciente" as CU03
+  usecase "CU04\nGestionar odontólogos" as CU04
+  usecase "CU05\nDefinir horario de atención" as CU05
+  usecase "CU06\nGestionar tratamientos" as CU06
+  usecase "CU07\nReservar cita" as CU07
+  usecase "CU08\nConsultar disponibilidad del odontólogo" as CU08
+  usecase "CU09\nReprogramar cita" as CU09
+}
+Usuario -- CU01
+Recepcionista -- CU02
+Administrador -- CU02
+Usuario -- CU03
+Administrador -- CU04
+Administrador -- CU05
+Administrador -- CU06
+Recepcionista -- CU07
+Administrador -- CU07
+Recepcionista -- CU08
+Administrador -- CU08
+CU07 ..> CU08 : <<include>>
+CU09 ..> CU08 : <<include>>
+CU05 ..> CU04 : <<extend>>
+note right of CU05
+  Condición: el administrador agrega, modifica
+  o quita bloques de horario
+  Punto de extensión: «Horario de atención»
+end note
+@enduml

@@ -1,0 +1,19 @@
+@startuml CU13_Consultar_agenda_del_dia
+title CU13 - Consultar agenda del día
+left to right direction
+skinparam packageStyle rectangle
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU13\nConsultar agenda del día" as CU13
+  usecase "CU14\nRegistrar atención" as CU14
+}
+Odontologo -- CU13
+Administrador -- CU13
+CU14 ..> CU13 : <<extend>>
+note right of CU14
+  Condición: la cita no está cancelada
+  y el odontólogo pulsa «Registrar atención»
+  Punto de extensión: «acciones de la cita»
+end note
+@enduml

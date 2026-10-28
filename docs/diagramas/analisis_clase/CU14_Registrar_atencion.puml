@@ -1,0 +1,50 @@
+@startuml CU14_Registrar_atencion_analisis
+title CU14 - Registrar atención
+allowmixing
+skinparam class {
+  BackgroundColor<<boundary>> #CFE2F3
+  BackgroundColor<<control>> #FFE599
+  BackgroundColor<<entity>> #B6D7A8
+}
+actor "Odontólogo" as Odontologo
+class Vatencion <<boundary>> {
+  +mostrarFormulario(cita): void
+  +enviarAtencion(citaId, diagnostico, tratamientoRealizado, observaciones): void
+  +mostrarError(codigo, mensaje): void
+}
+class Catencion <<control>> {
+  +registrar(citaId, datos): Cita
+  +actualizar(citaId, datos): Cita
+}
+class Ecita <<entity>> {
+  +id: Integer
+  +pacienteId: Integer
+  +odontologoId: Integer
+  +tratamientoId: Integer
+  +inicio: DateTime
+  +fin: DateTime
+  +estado: EstadoCita
+  +motivo: String
+  +motivoCancelacion: String
+  +createdAt: DateTime
+  +updatedAt: DateTime
+  +buscar(id): Cita
+  +marcarAtendida(id): void
+}
+class Eatencion <<entity>> {
+  +id: Integer
+  +citaId: Integer
+  +diagnostico: String
+  +tratamientoRealizado: String
+  +observaciones: String
+  +createdAt: DateTime
+  +updatedAt: DateTime
+  +insertar(citaId, datos): Atencion
+  +actualizar(citaId, datos): Atencion
+}
+Odontologo -- Vatencion
+Vatencion -- Catencion
+Catencion -- Ecita
+Catencion -- Eatencion
+Ecita "1" -- "0..1" Eatencion
+@enduml

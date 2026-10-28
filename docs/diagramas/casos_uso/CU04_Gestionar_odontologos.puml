@@ -1,0 +1,17 @@
+@startuml CU04_Gestionar_odontologos
+title CU04 - Gestionar odontólogos
+left to right direction
+skinparam packageStyle rectangle
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU04\nGestionar odontólogos" as CU04
+  usecase "CU05\nDefinir horario de atención" as CU05
+}
+Administrador -- CU04
+CU05 ..> CU04 : <<extend>>
+note right of CU05
+  Condición: el administrador agrega, modifica
+  o quita bloques de horario
+  Punto de extensión: «Horario de atención»
+end note
+@enduml

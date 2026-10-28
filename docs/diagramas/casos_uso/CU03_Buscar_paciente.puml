@@ -1,0 +1,16 @@
+@startuml CU03_Buscar_paciente
+title CU03 - Buscar paciente
+left to right direction
+skinparam packageStyle rectangle
+actor "Usuario" as Usuario
+actor "Recepcionista" as Recepcionista
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+Recepcionista --|> Usuario
+Odontologo --|> Usuario
+Administrador --|> Usuario
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU03\nBuscar paciente" as CU03
+}
+Usuario -- CU03
+@enduml

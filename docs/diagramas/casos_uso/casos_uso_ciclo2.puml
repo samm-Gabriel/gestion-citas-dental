@@ -1,0 +1,45 @@
+@startuml casos_uso_ciclo2
+title Casos de uso - Ciclo 2
+left to right direction
+skinparam packageStyle rectangle
+actor "Usuario" as Usuario
+actor "Recepcionista" as Recepcionista
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+Recepcionista --|> Usuario
+Odontologo --|> Usuario
+Administrador --|> Usuario
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU09\nReprogramar cita" as CU09
+  usecase "CU10\nCancelar cita" as CU10
+  usecase "CU11\nConfirmar cita" as CU11
+  usecase "CU12\nConsultar agenda de citas" as CU12
+  usecase "CU13\nConsultar agenda del día" as CU13
+  usecase "CU14\nRegistrar atención" as CU14
+  usecase "CU15\nConsultar historial del paciente" as CU15
+  usecase "CU16\nConsultar tablero" as CU16
+  usecase "CU08\nConsultar disponibilidad del odontólogo" as CU08
+}
+Recepcionista -- CU09
+Administrador -- CU09
+Recepcionista -- CU10
+Administrador -- CU10
+Recepcionista -- CU11
+Administrador -- CU11
+Recepcionista -- CU12
+Administrador -- CU12
+Odontologo -- CU13
+Administrador -- CU13
+Odontologo -- CU14
+Administrador -- CU14
+Usuario -- CU15
+Recepcionista -- CU16
+Administrador -- CU16
+CU09 ..> CU08 : <<include>>
+CU14 ..> CU13 : <<extend>>
+note right of CU14
+  Condición: la cita no está cancelada
+  y el odontólogo pulsa «Registrar atención»
+  Punto de extensión: «acciones de la cita»
+end note
+@enduml

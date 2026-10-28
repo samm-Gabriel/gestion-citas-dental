@@ -1,0 +1,70 @@
+@startuml casos_uso_general
+title Casos de uso - Diagrama general
+left to right direction
+skinparam packageStyle rectangle
+actor "Usuario" as Usuario
+actor "Recepcionista" as Recepcionista
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+Recepcionista --|> Usuario
+Odontologo --|> Usuario
+Administrador --|> Usuario
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU01\nSeleccionar perfil" as CU01
+  usecase "CU02\nGestionar pacientes" as CU02
+  usecase "CU03\nBuscar paciente" as CU03
+  usecase "CU04\nGestionar odontólogos" as CU04
+  usecase "CU05\nDefinir horario de atención" as CU05
+  usecase "CU06\nGestionar tratamientos" as CU06
+  usecase "CU07\nReservar cita" as CU07
+  usecase "CU08\nConsultar disponibilidad del odontólogo" as CU08
+  usecase "CU09\nReprogramar cita" as CU09
+  usecase "CU10\nCancelar cita" as CU10
+  usecase "CU11\nConfirmar cita" as CU11
+  usecase "CU12\nConsultar agenda de citas" as CU12
+  usecase "CU13\nConsultar agenda del día" as CU13
+  usecase "CU14\nRegistrar atención" as CU14
+  usecase "CU15\nConsultar historial del paciente" as CU15
+  usecase "CU16\nConsultar tablero" as CU16
+}
+Usuario -- CU01
+Recepcionista -- CU02
+Administrador -- CU02
+Usuario -- CU03
+Administrador -- CU04
+Administrador -- CU05
+Administrador -- CU06
+Recepcionista -- CU07
+Administrador -- CU07
+Recepcionista -- CU08
+Administrador -- CU08
+Recepcionista -- CU09
+Administrador -- CU09
+Recepcionista -- CU10
+Administrador -- CU10
+Recepcionista -- CU11
+Administrador -- CU11
+Recepcionista -- CU12
+Administrador -- CU12
+Odontologo -- CU13
+Administrador -- CU13
+Odontologo -- CU14
+Administrador -- CU14
+Usuario -- CU15
+Recepcionista -- CU16
+Administrador -- CU16
+CU07 ..> CU08 : <<include>>
+CU09 ..> CU08 : <<include>>
+CU05 ..> CU04 : <<extend>>
+note right of CU05
+  Condición: el administrador agrega, modifica
+  o quita bloques de horario
+  Punto de extensión: «Horario de atención»
+end note
+CU14 ..> CU13 : <<extend>>
+note right of CU14
+  Condición: la cita no está cancelada
+  y el odontólogo pulsa «Registrar atención»
+  Punto de extensión: «acciones de la cita»
+end note
+@enduml

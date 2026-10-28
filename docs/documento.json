@@ -1,0 +1,30 @@
+{
+  "slug": "gestion-citas-dental",
+  "sistema": "Sistema de gestión de citas para un consultorio odontológico",
+  "nombreCorto": "Gestión de citas odontológicas",
+  "autor": "Gabriel",
+  "universidad": "[Universidad — por completar]",
+  "facultad": "[Facultad — por completar]",
+  "grupo": "GRUPO #[por completar]",
+  "integrantes": [{ "nombre": "Gabriel [apellidos por completar]", "registro": "[por completar]" }],
+  "materia": "[por completar]",
+  "sigla": "[por completar]",
+  "grupoMateria": "[por completar]",
+  "docente": "[por completar]",
+  "ciudad": "[Ciudad]",
+  "fecha": "10/2026",
+  "capitulos": [
+    "01-perfil.md",
+    "02-marco-teorico.md",
+    "03-modelo-negocio.md",
+    "04-requisitos.md",
+    "05-analisis.md",
+    "06-diseno.md",
+    "07-implementacion.md",
+    "08-pruebas.md",
+    "09-conclusion.md",
+    "10-recomendacion.md",
+    "11-bibliografia.md",
+    "12-anexos.md"
+  ]
+}

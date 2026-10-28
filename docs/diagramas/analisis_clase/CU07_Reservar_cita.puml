@@ -1,0 +1,90 @@
+@startuml CU07_Reservar_cita_analisis
+title CU07 - Reservar cita
+allowmixing
+skinparam class {
+  BackgroundColor<<boundary>> #CFE2F3
+  BackgroundColor<<control>> #FFE599
+  BackgroundColor<<entity>> #B6D7A8
+}
+actor Recepcionista
+class Vcita <<boundary>> {
+  +mostrarFormulario(): void
+  +elegirOdontologoYFecha(odontologoId, fecha): void
+  +enviarCita(pacienteId, odontologoId, tratamientoId, fecha, horaInicio, motivo): void
+  +mostrarError(codigo, mensaje): void
+}
+class Ccita <<control>> {
+  +listarOcupadas(odontologoId, fecha): Cita[]
+  +reservar(datos): Cita
+  +bloquearAgenda(odontologoId): void
+  +calcularFin(inicio, duracionMinutos): DateTime
+  +cabeEnHorario(horarios, inicio, fin): boolean
+}
+class Epaciente <<entity>> {
+  +id: Integer
+  +nombre: String
+  +apellido: String
+  +ci: String
+  +telefono: String
+  +email: String
+  +fechaNacimiento: Date
+  +createdAt: DateTime
+  +updatedAt: DateTime
+  +buscar(id): Paciente
+}
+class Eodontologo <<entity>> {
+  +id: Integer
+  +nombre: String
+  +especialidad: String
+  +activo: Boolean
+  +createdAt: DateTime
+  +updatedAt: DateTime
+  +buscarConHorarios(id): Odontologo
+}
+class Ehorario_atencion <<entity>> {
+  +id: Integer
+  +odontologoId: Integer
+  +diaSemana: Integer
+  +horaInicio: String
+  +horaFin: String
+  +createdAt: DateTime
+  +updatedAt: DateTime
+}
+class Etratamiento <<entity>> {
+  +id: Integer
+  +nombre: String
+  +descripcion: String
+  +duracionMinutos: Integer
+  +precio: Decimal
+  +activo: Boolean
+  +createdAt: DateTime
+  +updatedAt: DateTime
+  +buscar(id): Tratamiento
+}
+class Ecita <<entity>> {
+  +id: Integer
+  +pacienteId: Integer
+  +odontologoId: Integer
+  +tratamientoId: Integer
+  +inicio: DateTime
+  +fin: DateTime
+  +estado: EstadoCita
+  +motivo: String
+  +motivoCancelacion: String
+  +createdAt: DateTime
+  +updatedAt: DateTime
+  +buscarActivas(odontologoId, fecha): Cita[]
+  +buscarChoque(odontologoId, inicio, fin): Cita
+  +insertar(cita): Cita
+}
+Recepcionista -- Vcita
+Vcita -- Ccita
+Ccita -- Epaciente
+Ccita -- Eodontologo
+Ccita -- Etratamiento
+Ccita -- Ecita
+Eodontologo "1" -- "0..*" Ehorario_atencion
+Epaciente "1" -- "0..*" Ecita
+Eodontologo "1" -- "0..*" Ecita
+Etratamiento "1" -- "0..*" Ecita
+@enduml

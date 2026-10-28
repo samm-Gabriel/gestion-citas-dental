@@ -1,0 +1,12 @@
+@startuml P2_trace_C1
+title P2 Odontólogos y tratamientos - Ciclo 1
+left to right direction
+package "P2 Odontólogos y tratamientos" as P2 {
+}
+usecase "CU04 Gestionar odontólogos" as CU04
+usecase "CU05 Definir horario de atención" as CU05
+usecase "CU06 Gestionar tratamientos" as CU06
+P2 ..> CU04 : <<trace>>
+P2 ..> CU05 : <<trace>>
+P2 ..> CU06 : <<trace>>
+@enduml

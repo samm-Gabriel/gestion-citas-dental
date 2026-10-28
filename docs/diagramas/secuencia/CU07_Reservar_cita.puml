@@ -1,0 +1,70 @@
+@startuml CU07_Reservar_cita
+title CU07 - Reservar cita
+skinparam maxMessageSize 150
+hide footbox
+autonumber
+actor "Recepcionista" as Actor
+boundary "Vcita" as Vcita
+control "Ccita" as Ccita
+entity "Epaciente" as Epaciente
+entity "Eodontologo" as Eodontologo
+entity "Etratamiento" as Etratamiento
+entity "Ecita" as Ecita
+
+== Consultar disponibilidad («include» CU08) ==
+Actor -> Vcita : elegirOdontologoYFecha(odontologoId, fecha)
+activate Vcita
+Vcita -> Ccita : listarOcupadas(odontologoId, fecha)
+activate Ccita
+Ccita -> Ecita : buscarActivas(odontologoId, fecha)
+Ccita --> Vcita : horas reservadas
+deactivate Ccita
+Vcita --> Actor : bloques del día y horas reservadas
+deactivate Vcita
+
+== Confirmar reserva ==
+Actor -> Vcita : enviarCita(pacienteId, odontologoId, tratamientoId, fecha, horaInicio, motivo)
+activate Vcita
+break faltan datos obligatorios (E1)
+  Vcita --> Actor : "Elige un paciente" / "Elige la hora"
+end
+Vcita -> Ccita : reservar(datos)
+activate Ccita
+break datos no válidos (E2)
+  Ccita --> Vcita : 400 VALIDACION
+  Vcita --> Actor : mensaje junto a cada campo
+end
+Ccita -> Ecita : bloquearAgenda(odontologoId)
+Ccita -> Epaciente : buscar(pacienteId)
+Ccita -> Eodontologo : buscarConHorarios(odontologoId)
+Ccita -> Etratamiento : buscar(tratamientoId)
+break paciente, odontólogo o tratamiento inexistente (E3)
+  Ccita --> Vcita : 404 NO_ENCONTRADO
+  Vcita --> Actor : "No existe el paciente con id N"
+end
+newpage CU07 - Reservar cita (continuación: reglas de agenda)
+== Validar reglas de agenda ==
+break odontólogo o tratamiento inactivo (E4)
+  Ccita --> Vcita : 422 INACTIVO
+  Vcita --> Actor : "El odontólogo ... está inactivo y no puede recibir citas"
+end
+Ccita -> Ccita : calcularFin(inicio, duracionMinutos)
+break inicio en el pasado (E5)
+  Ccita --> Vcita : 422 CITA_EN_PASADO
+  Vcita --> Actor : "No se puede agendar una cita en el pasado"
+end
+break la cita no cabe en un bloque del horario (E6)
+  Ccita --> Vcita : 422 FUERA_DE_HORARIO
+  Vcita --> Actor : "La cita ... no cabe en el horario de atención"
+end
+Ccita -> Ecita : buscarChoque(odontologoId, inicio, fin)
+break otra cita no cancelada se cruza (E7)
+  Ccita --> Vcita : 409 CHOQUE_HORARIO
+  Vcita --> Actor : "El odontólogo ya tiene una cita ... que se cruza con este horario"
+end
+Ccita -> Ecita : insertar(cita)
+Ccita --> Vcita : cita creada (201)
+deactivate Ccita
+Vcita --> Actor : "Cita reservada: fecha de horaInicio a horaFin"
+deactivate Vcita
+@enduml

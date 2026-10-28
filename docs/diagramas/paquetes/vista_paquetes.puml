@@ -1,0 +1,17 @@
+@startuml vista_paquetes
+title Vista de paquetes
+package "P1 Acceso y pacientes" as P1 {
+}
+package "P2 Odontólogos y tratamientos" as P2 {
+}
+package "P3 Agenda de citas" as P3 {
+}
+package "P4 Atención y seguimiento" as P4 {
+}
+P1 ..> P2 : lista odontólogos activos\npara el perfil Odontólogo
+P3 ..> P1 : usa el paciente
+P3 ..> P2 : usa odontólogo, horario\ny duración del tratamiento
+P4 ..> P3 : consulta y actualiza citas
+P4 ..> P1 : pacientes, historial\ny pacientes nuevos del mes
+P4 ..> P2 : odontólogos activos\npara la agenda y el tablero
+@enduml

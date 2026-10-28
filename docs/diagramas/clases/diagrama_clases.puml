@@ -1,0 +1,72 @@
+@startuml diagrama_clases
+title Diagrama de clases del dominio (prisma/schema.prisma)
+hide circle
+skinparam classAttributeIconSize 0
+enum EstadoCita <<enumeration>> {
+  PENDIENTE
+  CONFIRMADA
+  ATENDIDA
+  CANCELADA
+}
+class Paciente {
+  id: Integer
+  nombre: String
+  apellido: String
+  ci: String {unique}
+  telefono: String
+  email: String [0..1]
+  fechaNacimiento: Date [0..1]
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+class Odontologo {
+  id: Integer
+  nombre: String
+  especialidad: String
+  activo: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+class HorarioAtencion {
+  id: Integer
+  diaSemana: Integer
+  horaInicio: String
+  horaFin: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+class Tratamiento {
+  id: Integer
+  nombre: String {unique}
+  descripcion: String [0..1]
+  duracionMinutos: Integer
+  precio: Decimal(10,2)
+  activo: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+class Cita {
+  id: Integer
+  inicio: DateTime
+  fin: DateTime
+  estado: EstadoCita
+  motivo: String [0..1]
+  motivoCancelacion: String [0..1]
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+class Atencion {
+  id: Integer
+  diagnostico: String [0..1]
+  tratamientoRealizado: String [0..1]
+  observaciones: String [0..1]
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+Odontologo "1" *-- "0..*" HorarioAtencion : atiende en >
+Paciente "1" -- "0..*" Cita : solicita >
+Odontologo "1" -- "0..*" Cita : atiende >
+Tratamiento "1" -- "0..*" Cita : se agenda en >
+Cita "1" *-- "0..1" Atencion : registra >
+Cita ..> EstadoCita
+@enduml

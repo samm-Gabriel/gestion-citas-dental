@@ -1,0 +1,12 @@
+@startuml CU10_Cancelar_cita
+title CU10 - Cancelar cita
+left to right direction
+skinparam packageStyle rectangle
+actor "Recepcionista" as Recepcionista
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU10\nCancelar cita" as CU10
+}
+Recepcionista -- CU10
+Administrador -- CU10
+@enduml

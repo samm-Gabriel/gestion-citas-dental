@@ -1,0 +1,19 @@
+@startuml CU14_Registrar_atencion
+title CU14 - Registrar atención
+left to right direction
+skinparam packageStyle rectangle
+actor "Odontólogo" as Odontologo
+actor "Administrador" as Administrador
+rectangle "Sistema de gestión de citas odontológicas" {
+  usecase "CU14\nRegistrar atención" as CU14
+  usecase "CU13\nConsultar agenda del día" as CU13
+}
+Odontologo -- CU14
+Administrador -- CU14
+CU14 ..> CU13 : <<extend>>
+note right of CU14
+  Condición: la cita no está cancelada
+  y el odontólogo pulsa «Registrar atención»
+  Punto de extensión: «acciones de la cita»
+end note
+@enduml

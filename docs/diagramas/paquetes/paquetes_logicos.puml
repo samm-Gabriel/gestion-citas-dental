@@ -1,0 +1,24 @@
+@startuml paquetes_logicos
+title Arquitectura lógica (Next.js App Router)
+package "Presentación\n(app/(panel), app/page.tsx, components/)" as Pres {
+  package "P1 pacientes/ y selector de perfil" as V1
+  package "P2 odontologos/ y tratamientos/" as V2
+  package "P3 citas/nueva y components/citas" as V3
+  package "P4 citas/, agenda-dia/, tablero/" as V4
+}
+package "Cliente HTTP tipado\n(lib/api.ts, hooks/)" as Cli
+package "Controladores\n(app/api/**/route.ts)" as Ctl {
+  package "api/pacientes" as A1
+  package "api/odontologos, api/tratamientos" as A2
+  package "api/citas" as A3
+  package "api/tablero" as A4
+}
+package "Lógica de negocio\n(lib/agenda.ts, lib/tablero.ts,\nlib/validators.ts, lib/http.ts, lib/fechas.ts)" as Neg
+package "Acceso a datos\n(lib/prisma.ts, Prisma Client)" as Dat
+database "PostgreSQL\n(schema gestion-citas-dental)" as BD
+Pres ..> Cli
+Cli ..> Ctl : HTTP JSON
+Ctl ..> Neg
+Neg ..> Dat
+Dat ..> BD : SQL parametrizado
+@enduml
