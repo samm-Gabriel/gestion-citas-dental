@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum EstadoCita {
+  PENDIENTE
+  CONFIRMADA
+  ATENDIDA
+  CANCELADA
+}
+
+model Paciente {
+  id              Int       @id @default(autoincrement())
+  nombre          String
+  apellido        String
+  ci              String    @unique
+  telefono        String
+  email           String?
+  fechaNacimiento DateTime? @db.Date
+  citas           Cita[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([apellido, nombre])
+}
+
+model Odontologo {
+  id           Int               @id @default(autoincrement())
+  nombre       String
+  especialidad String
+  activo       Boolean           @default(true)
+  horarios     HorarioAtencion[]
+  citas        Cita[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+/// diaSemana: 0 = domingo ... 6 = sábado. Horas en formato HH:MM, hora local America/La_Paz.
+model HorarioAtencion {
+  id           Int        @id @default(autoincrement())
+  odontologoId Int
+  odontologo   Odontologo @relation(fields: [odontologoId], references: [id], onDelete: Cascade)
+  diaSemana    Int
+  horaInicio   String
+  horaFin      String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([odontologoId, diaSemana, horaInicio])
+}
+
+model Tratamiento {
+  id              Int      @id @default(autoincrement())
+  nombre          String   @unique
+  descripcion     String?
+  duracionMinutos Int
+  precio          Decimal  @db.Decimal(10, 2)
+  activo          Boolean  @default(true)
+  citas           Cita[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Cita {
+  id                Int         @id @default(autoincrement())
+  pacienteId        Int
+  paciente          Paciente    @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  odontologoId      Int
+  odontologo        Odontologo  @relation(fields: [odontologoId], references: [id], onDelete: Restrict)
+  tratamientoId     Int
+  tratamiento       Tratamiento @relation(fields: [tratamientoId], references: [id], onDelete: Restrict)
+  inicio            DateTime
+  fin               DateTime
+  estado            EstadoCita  @default(PENDIENTE)
+  motivo            String?
+  motivoCancelacion String?
+  atencion          Atencion?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([odontologoId, inicio])
+  @@index([pacienteId, inicio])
+  @@index([estado])
+}
+
+model Atencion {
+  id                   Int      @id @default(autoincrement())
+  citaId               Int      @unique
+  cita                 Cita     @relation(fields: [citaId], references: [id], onDelete: Cascade)
+  diagnostico          String?
+  tratamientoRealizado String?
+  observaciones        String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
