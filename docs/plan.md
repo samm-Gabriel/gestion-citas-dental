@@ -4,9 +4,9 @@ Historia de usuario: #1
 
 | # | Sub-historia | Etapa | Issue | Estado |
 |---|---|---|---|---|
-| 1 | Modelo de datos y API de pacientes y odontólogos | backend | #2 | pendiente |
-| 2 | API de tratamientos y citas con reglas de agenda | backend | #3 | pendiente |
-| 3 | API de atención y tablero | backend | #4 | pendiente |
+| 1 | Modelo de datos y API de pacientes y odontólogos | backend | #2 | hecha |
+| 2 | API de tratamientos y citas con reglas de agenda | backend | #3 | hecha |
+| 3 | API de atención y tablero | backend | #4 | hecha |
 | 4 | Pantallas de pacientes, odontólogos y tratamientos | frontend | #5 | pendiente |
 | 5 | Pantallas de agenda de citas, atención y tablero con selector de perfil | frontend | #6 | pendiente |
 | 6 | Conectar la UI con la API real y dejar el build en verde | integracion | #7 | pendiente |
