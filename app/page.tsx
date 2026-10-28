@@ -1,69 +1,126 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Check } from "lucide-react";
+import { Marca } from "@/components/app-sidebar";
+import { AlertaError } from "@/components/comunes";
+import { PERFILES, usePerfil, type Perfil } from "@/components/perfil-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { useDatos } from "@/hooks/use-datos";
+import { listOdontologos } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+const ORDEN: Perfil[] = ["RECEPCIONISTA", "ODONTOLOGO", "ADMINISTRADOR"];
+
+export default function SelectorPerfilPage() {
+  const router = useRouter();
+  const { perfil: actual, elegir } = usePerfil();
+  const [seleccionado, setSeleccionado] = useState<Perfil | null>(null);
+  const [odontologoId, setOdontologoId] = useState("");
+  const odontologos = useDatos(() => listOdontologos({ activo: true, pageSize: 100 }), seleccionado === "ODONTOLOGO" ? "odontologos" : null);
+
+  function entrar(perfil: Perfil, id?: number) {
+    elegir(perfil, id);
+    router.push(PERFILES[perfil].inicio);
+  }
+
+  function alElegir(perfil: Perfil) {
+    if (perfil === "ODONTOLOGO") setSeleccionado(perfil);
+    else entrar(perfil);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-svh bg-gradient-to-b from-primary/10 via-background to-background">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-5 py-8 md:py-14">
+        <header className="flex items-center justify-between">
+          <Marca />
+          <ThemeToggle />
+        </header>
+
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">¿Con qué perfil deseas ingresar?</h1>
+          <p className="max-w-2xl text-muted-foreground">
+            Cada perfil muestra solo los menús que necesita. Puedes cambiarlo en cualquier momento desde la barra lateral.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {ORDEN.map((perfil) => {
+            const info = PERFILES[perfil];
+            const Icono = info.icono;
+            const activo = seleccionado === perfil;
+            return (
+              <Card key={perfil} className={cn("transition-all", activo ? "ring-2 ring-primary" : "hover:-translate-y-0.5 hover:shadow-md")}>
+                <CardContent className="flex h-full flex-col gap-5">
+                  <button type="button" onClick={() => alElegir(perfil)} className="flex flex-1 flex-col gap-4 text-left outline-none">
+                    <div className="flex items-start justify-between">
+                      <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Icono className="size-6" />
+                      </div>
+                      {actual === perfil && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          <Check className="size-3" />
+                          Actual
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold">{info.nombre}</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">{info.descripcion}</p>
+                    </div>
+                    {perfil !== "ODONTOLOGO" && (
+                      <span className="mt-auto inline-flex items-center gap-1 text-sm font-medium text-primary">
+                        Ingresar
+                        <ArrowRight className="size-4" />
+                      </span>
+                    )}
+                  </button>
+
+                  {perfil === "ODONTOLOGO" &&
+                    (activo ? (
+                      <form
+                        className="flex flex-col gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (odontologoId) entrar("ODONTOLOGO", Number(odontologoId));
+                        }}
+                      >
+                        <Label htmlFor="odontologo">¿Quién eres?</Label>
+                        <NativeSelect
+                          id="odontologo"
+                          value={odontologoId}
+                          onChange={(e) => setOdontologoId(e.target.value)}
+                          disabled={odontologos.cargando}
+                        >
+                          <option value="">{odontologos.cargando ? "Cargando odontólogos…" : "Selecciona tu nombre"}</option>
+                          {odontologos.data?.data.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.nombre} — {o.especialidad}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                        <AlertaError titulo="No se pudo cargar la lista" mensaje={odontologos.error} />
+                        <Button type="submit" disabled={!odontologoId}>
+                          Ingresar a mi agenda
+                          <ArrowRight data-icon="inline-end" />
+                        </Button>
+                      </form>
+                    ) : (
+                      <Button variant="outline" onClick={() => alElegir("ODONTOLOGO")}>
+                        Elegir odontólogo
+                      </Button>
+                    ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
