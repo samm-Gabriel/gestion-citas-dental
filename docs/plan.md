@@ -9,7 +9,7 @@ Historia de usuario: #1
 | 3 | API de atención y tablero | backend | #4 | hecha |
 | 4 | Pantallas de pacientes, odontólogos y tratamientos | frontend | #5 | hecha |
 | 5 | Pantallas de agenda de citas, atención y tablero con selector de perfil | frontend | #6 | hecha |
-| 6 | Conectar la UI con la API real y dejar el build en verde | integracion | #7 | pendiente |
+| 6 | Conectar la UI con la API real y dejar el build en verde | integracion | #7 | hecha |
 | 7 | Pruebas automáticas de la API y smoke de páginas | pruebas | #8 | pendiente |
 | 8 | Documento del sistema con diagramas | docs | #9 | pendiente |
 | 9 | Despliegue en Vercel con PostgreSQL | deploy | #10 | pendiente |
